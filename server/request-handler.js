@@ -11,6 +11,7 @@ this file and include it in basic-server.js so that it actually works.
 *Hint* Check out the node module documentation at http://nodejs.org/api/modules.html.
 
 **************************************************************/
+var messages = [];
 
 var requestHandler = function(request, response) {
   // Request and Response come from node's http module.
@@ -45,6 +46,21 @@ var requestHandler = function(request, response) {
   // which includes the status and all headers.
   response.writeHead(statusCode, headers);
 
+  let stringEndPoint = request.url.split('?')[0];
+  let endPointElements = stringEndPoint.split('/').splice(-2);
+  
+  if (endPointElements[0] !== 'classes') {
+    notFoundHandler(response);
+  }
+  if (endPointElements[1] !== 'room' && endPointElements[1] !== 'messages') {
+    notFoundHandler(response);
+  }
+
+  let action = actions[request.method];
+  action ? action(request, response) : notFoundHandler(response);
+  
+  
+
   // Make sure to always call response.end() - Node may not send
   // anything back to the client until you do. The string you pass to
   // response.end() will be the body of the response - i.e. what shows
@@ -52,8 +68,35 @@ var requestHandler = function(request, response) {
   //
   // Calling .end "flushes" the response's internal buffer, forcing
   // node to actually send all the data over to the client.
-  response.end('Hello, World!');
+  //response.end(JSON.stringify({results: []}));
 };
+
+var getHandler = function (request, response) {
+  let headers = defaultCorsHeaders;
+  headers['Content-Type'] = 'application/json';
+  response.writeHead(200, headers);
+  response.end(JSON.stringify({results: messages}));
+};
+
+var postHandler = function (request, response) {
+  response.writeHead(201);
+  
+  let body = [];
+  request.on('data', (chunk) => {
+    body.push(chunk);
+  }).on('end', () => {
+    body = Buffer.concat(body).toString();
+    messages.push(body);
+    response.end();
+  });
+};
+
+var notFoundHandler = function (response) {
+  response.writeHead(404);
+  response.end();
+};
+
+var actions = {'POST': postHandler, 'GET': getHandler};
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
 // This code allows this server to talk to websites that
@@ -71,3 +114,4 @@ var defaultCorsHeaders = {
   'access-control-max-age': 10 // Seconds.
 };
 
+module.exports.requestHandler = requestHandler;
