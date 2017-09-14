@@ -22,6 +22,15 @@ this file and include it in basic-server.js so that it actually works.
 // client from this domain by setting up static file serving.
 const express = require('express');
 const app = express();
+var level = require('level'); 
+var path = require('path');
+
+var dbPath = process.env.DB_PATH || path.join(__dirname, 'mydb');
+var options = {  
+  keyEncoding: 'binary',
+  valueEncoding: 'json'
+};
+var db = level(dbPath, options);
 
 var defaultCorsHeaders = {
   'access-control-allow-origin': '*',
@@ -43,19 +52,27 @@ var getHandler = function (request, response) {
       parameters[keyValueArr[0]] = keyValueArr[1];
     }
   }
-  let returnMessages = messages.slice();
-  if (parameters.order === '-createdAt') {
-    returnMessages = returnMessages.reverse();
-  }
-  if (parameters.limit) {
-    let limit = parseInt(parameters.limit, 10);
-    returnMessages = returnMessages.slice(0, limit); 
-  }
+  db.get('messages', (err, value) => {
+    if (err) {
+      response.end();
+    } else {
+      messages = JSON.parse(value);
+      let returnMessages = messages.slice();
+      if (parameters.order === '-createdAt') {
+        returnMessages = returnMessages.reverse();
+      }
+      if (parameters.limit) {
+        let limit = parseInt(parameters.limit, 10);
+        returnMessages = returnMessages.slice(0, limit); 
+      }
 
-  let headers = defaultCorsHeaders;
-  headers['Content-Type'] = 'application/json';
-  response.writeHead(200, headers);
-  response.end(JSON.stringify({results: returnMessages}));
+      let headers = defaultCorsHeaders;
+      headers['Content-Type'] = 'application/json';
+      response.writeHead(200, headers);
+      response.end(JSON.stringify({results: returnMessages}));
+    }
+  });
+  
 };
 
 var postHandler = function (request, response) {
@@ -72,8 +89,16 @@ var postHandler = function (request, response) {
     body = body.toString();
     let message = JSON.parse(body);
     message.createdAt = new Date();
-    messages.push(message);
-    response.end(JSON.stringify({results: messages}));
+    db.get('messages', (err, value) => {
+      if (err) {
+        db.put('messages', JSON.stringify(messages));
+      } else {
+        messages = JSON.parse(value);
+      }
+      messages.push(message);
+      db.put('messages', JSON.stringify(messages));
+      response.end(JSON.stringify({results: messages}));
+    });
   });
 };
 
@@ -100,8 +125,6 @@ var deleteHandler = function (request, response) {
   response.writeHead(403, headers);
   response.end();
 };
-
-var path = require('path');
 
 app.use(express.static(path.join(__dirname, 'public')));
 
