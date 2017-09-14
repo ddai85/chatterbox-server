@@ -29,10 +29,28 @@ var defaultCorsHeaders = {
 var messages = [];
 
 var getHandler = function (response, request) {
+  let parameterStringPart = request.url.split('?')[1];
+  let parameters = {};
+  if (parameterStringPart) {
+    let parameterPairs = parameterStringPart.split('&');
+    for (let pair of parameterPairs) {
+      let keyValueArr = pair.split('=');
+      parameters[keyValueArr[0]] = keyValueArr[1];
+    }
+  }
+  let returnMessages = messages.slice();
+  if (parameters.order === '-createdAt') {
+    returnMessages = returnMessages.reverse();
+  }
+  if (parameters.limit) {
+    let limit = parseInt(parameters.limit, 10);
+    returnMessages = returnMessages.slice(0, limit); 
+  }
+
   let headers = defaultCorsHeaders;
   headers['Content-Type'] = 'application/json';
   response.writeHead(200, headers);
-  response.end(JSON.stringify({results: messages}));
+  response.end(JSON.stringify({results: returnMessages}));
 };
 
 var postHandler = function (response, request) {
@@ -46,7 +64,9 @@ var postHandler = function (response, request) {
   });
   request.on('end', () => {
     body = body.toString();
-    messages.push(JSON.parse(body));
+    let message = JSON.parse(body);
+    message.createdAt = new Date();
+    messages.push(message);
     response.end(JSON.stringify({results: messages}));
   });
 };
@@ -60,7 +80,12 @@ var notFoundHandler = function (response) {
   response.end();
 };
 
-var actions = {'POST': postHandler, 'GET': getHandler, 'OPTIONS': optionsHandler};
+var deleteHandler = function (response) {
+  response.writeHead(403);
+  response.end();
+};
+
+var actions = {'POST': postHandler, 'GET': getHandler, 'OPTIONS': optionsHandler, 'DELETE': deleteHandler};
 
 
 var requestHandler = function(request, response) {

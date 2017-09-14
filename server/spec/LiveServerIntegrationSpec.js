@@ -73,5 +73,60 @@ describe('server', function() {
     });
   });
 
+  it('Should 403 when asked for a DELETE Request', function(done) {
+    var requestParams = {method: 'DELETE',
+      uri: 'http://127.0.0.1:3000/classes/messages'
+    };
+
+    request(requestParams, function(error, response, body) {
+      // Now if we request the log, that message we posted should be there:
+      expect(response.statusCode).to.equal(403);
+      done();
+    });
+  });
+    
+  it('should respond with number of messages defined by limit', function(done) {
+    var requestParams = {method: 'POST',
+      uri: 'http://127.0.0.1:3000/classes/messages',
+      json: {
+        username: 'Jono',
+        message: 'Do my bidding!'}
+    };
+
+    request(requestParams, function(error, response, body) {
+      // Now if we request the log, that message we posted should be there:
+      request('http://127.0.0.1:3000/classes/messages?limit=2', function(error, response, body) {
+        var messages = JSON.parse(body).results;
+        expect(messages.length).to.equal(2);
+        done();
+      });
+    });
+  });
+
+  it('should return messages in correct order', function(done) {
+    for (let i = 0; i < 3; i++) {
+      var requestParams = {method: 'POST',
+        uri: 'http://127.0.0.1:3000/classes/messages',
+        json: {
+          username: 'Jono',
+          message: `${i}`}
+      };
+      
+      if (i === 2) {
+        request(requestParams, function(error, response, body) {
+          // Now if we request the log, that message we posted should be there:
+          request('http://127.0.0.1:3000/classes/messages?order=-createdAt', function(error, response, body) {
+            var messages = JSON.parse(body).results;
+            
+            expect(messages[0].message).to.equal('2');
+            done();
+          });
+        });
+      } else {
+        request(requestParams);
+      }
+    }
+   
+  });
 
 });
